@@ -1,0 +1,242 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Module>
+	<ModulePrefs title="MyGadget" author_email="zjshen@your.domain">
+		<Require feature="sciverse" />
+	</ModulePrefs>
+	<Content type="html" view="canvas"><![CDATA[
+<style type="text/css">
+@import url("http://ajax.googleapis.com/ajax/libs/jqueryui/1.8/themes/base/jquery-ui.css");
+</style>
+
+<style type="text/css">
+.selectable .ui-selecting { background: #006370; }
+.selectable .ui-selected { background: #F39814; color: white; }
+.selectable {list-style-type: none; margin: 0; padding: 0; }
+.selectable li {
+margin: 3px; padding: 0.4em;
+background: none repeat scroll 0 0 #F5F4EE;
+border: 1px dotted #DDDDDD;
+color: #06263C;
+font-size: 14px;
+}
+
+.selectable li div {
+font-size: 12px;
+}
+
+.question-body {
+margin: 3px; padding: 0.4em;
+border: 1px dotted #DDDDDD;
+color: #06263C;
+font-size: 14px;
+}
+
+.question-body div {
+font-size: 12px;
+}
+</style>
+
+<script src="http://ajax.googleapis.com/ajax/libs/jquery/1.5/jquery.min.js"></script>
+<script src="http://ajax.googleapis.com/ajax/libs/jqueryui/1.8/jquery-ui.min.js"></script>
+
+<div id="my_table"></div>
+
+<script type="text/javascript">
+var userId;
+var authtoken;
+var paperId;
+var reference="";
+
+
+function context_init(context) {
+	paperId = context.SCOPUSID;
+	userId = context.accountId;
+	authtoken = context.secureAuthtoken;
+	var params = {};  
+    params[gadgets.io.RequestParameters.CONTENT_TYPE] = gadgets.io.ContentType.TEXT;  
+    var url = "http://stjohn.comp.nus.edu.sg/~zhaozhe1/sciverse/list.php?paperId=" + paperId;
+    gadgets.io.makeRequest(url, get_response, params);
+}
+
+function getcontext() {
+	gadgets.sciverse.getContextInfo(context_init);
+}
+
+gadgets.util.registerOnLoadHandler(getcontext);
+
+function get_response(obj) {
+	document.getElementById("my_table").innerHTML = obj.text;
+	$("#accordion").accordion();
+    $(".selectable").selectable();
+    $("comment_button").button();
+    $("comment_button").each(function(index) {
+	    $(this).bind("click", function() {
+	    	document.forms["post"].elements["type"].value = "false";
+	    	document.forms["post"].elements["parentId"].value = $(this).attr("id");
+	    	$("#my_post").dialog({ width: 900 });
+    		document.forms["post"].elements["content"].value = "";
+    		$("#category").hide();
+	   	});
+	});
+}
+
+function post_response(obj) {
+	window.location.reload();
+}
+
+function do_post(){
+	var url = "http://api.elsevier.com/content/abstract/SCOPUS_ID:"+paperId+"?view=REF"; 
+ 	var requestHeaders = {}; 
+	requestHeaders['X-ELS-APIKey'] = "0ccc0442e3b286bd6d748c988ea93fc0"; 
+	requestHeaders['X-ELS-Authtoken'] = authtoken; 
+	var params = {}; 
+ 	params[gadgets.io.RequestParameters.HEADERS] = requestHeaders; 
+	gadgets.sciverse.makeRequest(url, refcallback, params)
+}
+
+function refcallback(obj)
+{
+	var text = obj['text'];
+	$(text).find("scopus-id").each(function() {
+		if(reference==""){
+			reference=$(this).text();
+		}else{
+			reference=reference+","+$(this).text();
+		}
+	});
+	var params = {};
+    params[gadgets.io.RequestParameters.METHOD] = gadgets.io.MethodType.POST;
+    var data = {};
+    if (userId == undefined || userId == null) {
+    	data["userId"] = "";
+    } else {
+    	data["userId"] = userId;
+    }
+    if (paperId == undefined || paperId == null) {
+    	alert("Oops! Error in posting.");
+    	return;
+    } else {
+    	data["paperId"] = paperId;
+    }
+    data["content"] = document.forms["post"].elements["content"].value;
+    if (document.forms["post"].elements["category"][0].checked) {
+    	data["category"] = "0";
+    } else {
+    	data["category"] = "1";
+    }
+    data["type"] = document.forms["post"].elements["type"].value;
+    data["parentId"] = document.forms["post"].elements["parentId"].value;
+    data["anonymous"] = document.forms["post"].elements["anonymous"].checked;
+    data["reference"]=reference;
+    var encodedData = gadgets.io.encodeValues(data);
+	params[gadgets.io.RequestParameters.POST_DATA]= encodedData;
+	var url = "http://stjohn.comp.nus.edu.sg/~zhaozhe1/sciverse/post.php";
+	gadgets.io.makeRequest(url, post_response, params);
+}
+
+function clear_post() {
+	document.forms["post"].elements["content"].value = "";
+}
+
+$(document).ready(function() {
+    $("button").button();
+    $("button").bind("click", function() {
+    	$("#my_post").dialog({ width: 900 });
+    	document.forms["post"].elements["type"].value = "true";
+    	document.forms["post"].elements["content"].value = "";
+    	$("#category").show();
+   	});
+    $("do_button").button();
+    $("do_button").bind("click", do_post);
+    $("clear_button").button();
+    $("clear_button").bind("click", clear_post);
+    $("#anonymous_check").button();
+    $("#category").buttonset();
+})
+</script>
+
+<br/>
+<button>Ask Question</button>
+
+
+<div id="my_post" align="center" style="display: none;">
+	<form name="post">
+		<input type="hidden" name="type" value="true" />
+		<input type="hidden" name="parentId" value="" />
+		<textarea rows="10" name="content" cols="80"></textarea>
+		<br/>
+		<span id="category">
+			<input type="radio" id="category_specific" name="category" checked="checked" /><label for="category_specific">Specific</label>
+			<input type="radio" id="category_general" name="category" /><label for="category_general">General</label>
+		</span>
+		&nbsp;&nbsp;&nbsp;&nbsp;
+		<input type="checkbox" id="anonymous_check" name="anonymous"/><label for="anonymous_check">Anonymous</label>
+		&nbsp;&nbsp;&nbsp;&nbsp;
+		<do_button>Submit</do_button>
+		<clear_button>Reset</clear_button>
+	</form>
+</div>
+
+  ]]></Content>
+	<Content type="html" view="profile"><![CDATA[
+<style type="text/css">
+@import url("http://ajax.googleapis.com/ajax/libs/jqueryui/1.8/themes/base/jquery-ui.css");
+</style>
+
+<style type="text/css">
+.selectable .ui-selecting { background: #006370; }
+.selectable .ui-selected { background: #F39814; color: white; }
+.selectable {list-style-type: none; margin: 0; padding: 0; }
+.selectable li {
+margin: 3px; padding: 0.4em;
+background: none repeat scroll 0 0 #F5F4EE;
+border: 1px dotted #DDDDDD;
+color: #06263C;
+font-size: 14px;
+}
+
+.selectable li div {
+font-size: 12px;
+}
+
+.statistic-bar {
+margin: 3px; padding: 0.4em;
+border: 1px dotted #DDDDDD;
+color: #06263C;
+font-size: 14px;
+}
+</style>
+
+<script src="http://ajax.googleapis.com/ajax/libs/jquery/1.5/jquery.min.js"></script>
+<script src="http://ajax.googleapis.com/ajax/libs/jqueryui/1.8/jquery-ui.min.js"></script>
+
+
+<script type="text/javascript">
+var userId;
+var paperId;
+
+function context_init(context) {
+	paperId = context.SCOPUSID;
+	userId = context.accountId;	
+	var params = {};  
+    params[gadgets.io.RequestParameters.CONTENT_TYPE] = gadgets.io.ContentType.TEXT;  
+    var url = "http://stjohn.comp.nus.edu.sg/~zhaozhe1/sciverse/abstract.php?paperId=" + paperId;
+    gadgets.io.makeRequest(url, get_response, params);
+}
+
+function getcontext() {
+	gadgets.sciverse.getContextInfo(context_init);
+}
+
+gadgets.util.registerOnLoadHandler(getcontext);
+
+function get_response(obj) {
+	document.getElementById("my_abstract").innerHTML = obj.text;
+    $(".selectable").selectable();
+}
+</script>
+
+<div id="my_abstract"/>
+
+  ]]></Content>
+</Module>
